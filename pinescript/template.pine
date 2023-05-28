@@ -16,7 +16,7 @@
     //     STRATEGY ESTABLISH    //
     ///////////////////////////////  
 
-strategy('[PB-BTC-12] - [2hr] Breakout Pivot Trend (MULTI)', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
+strategy('LESSON04-template', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
 
     ///////////////////////////////
     //   DATE RANGE OF BACKTEST  //
@@ -323,9 +323,6 @@ else if SL_METHOD == 'SL@LEVERAGE'
     Ldiff = math.abs(strategy.position_avg_price - LeveragelongStopPrice)
     Sdiff = math.abs(strategy.position_avg_price - LeverageshortStopPrice)
 
-    TREND_REVERSAL_SL_LONG := LongSLsum + Ldiff
-    TREND_REVERSAL_SL_SHORT := ShortSLsum - Sdiff
-    TREND_REVERSAL_SL_SHORT
 
 
 else if SL_METHOD == 'SL@ATR'
