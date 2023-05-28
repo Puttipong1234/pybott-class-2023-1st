@@ -1,0 +1,30 @@
+Name,Value
+__indicatorName,LESSON04-Template
+Start Date,28
+Start Month,5
+Start Year,2022
+End Date,28
+End Month,5
+End Year,2023
+USE SPECIFIC DATE ?,FALSE
+LOTS,10
+Leverage,8
+LONG_ONLY ?,FALSE
+DEMA_length,50
+Pivot Point Period,8
+ATR Factor,3.25
+ATR Period,10
+Length,12
+Slope,1
+Slope Calculation Method,Atr
+Show Only Confirmed Breakouts,FALSE
+SL_METHOD,SL@CUSTOM
+LOWEST_SL_LOOKBACK,51
+PREVIOUS_SL_RR,20
+ATR_LENGTH,21
+ATR_SMOOTHING,RMA
+ATR_MUL_SL,2
+ATR_MUL_TP,3
+% TP 1,5.3
+% TP 2,18
+% SL,2.3
