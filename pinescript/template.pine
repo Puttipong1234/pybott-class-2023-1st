@@ -16,7 +16,7 @@
     //     STRATEGY ESTABLISH    //
     ///////////////////////////////  
 
-strategy('LESSON04-template', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
+strategy('LESSON04-Template', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
 
     ///////////////////////////////
     //   DATE RANGE OF BACKTEST  //
@@ -40,7 +40,7 @@ inDateRange = SPECIFIC_DATE ? time >= timestamp(syminfo.timezone, startYear, sta
     ///////////////////////////////
 
 EACHLOTS = input.int(defval=10, title='LOTS', group='RISK CONFIG')  //7
-LEVERAGE = input.int(defval=14, title='Leverage', group='RISK CONFIG')  //14
+LEVERAGE = input.int(defval=8, title='Leverage', group='RISK CONFIG')  //14
 LONG_ONLY = input.bool(false, 'LONG_ONLY ?', group='RISK CONFIG')
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +48,18 @@ LONG_ONLY = input.bool(false, 'LONG_ONLY ?', group='RISK CONFIG')
 //                      ======  INDICATORS IN USE  ======                     //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////
+    //  CREATE INDICATOR 1 HERE  // DEMA
+    ///////////////////////////////
+
+DEMA_length = input.int(50, minval=1)
+e1 = ta.ema(close, DEMA_length)
+e2 = ta.ema(e1, DEMA_length)
+dema = 2 * e1 - e2
+plot(dema, "DEMA", color= color.yellow , linewidth = 4)
+
+LONG_DEMA_SIDE = close > dema
+SHORT_DEMA_SIDE = close < dema
 
     ///////////////////////////////
     //  CREATE INDICATOR 1 HERE  // PIVOT SUPERTREND
@@ -98,7 +110,7 @@ PVT1_ssignal = PVT1_Trend == -1
     //  CREATE INDICATOR 2 HERE  // luxalgo trendline breakout
     ///////////////////////////////
 
-length = input.int(14)
+length = input.int(12)
 k      = input.float(1.,'Slope',minval=0,step=.1)
 method = input.string('Atr','Slope Calculation Method',
   options=['Atr','Stdev','Linreg'])
@@ -166,7 +178,8 @@ plot(lower,'Lower',color = pl ? na : #ef5350,offset=-length)
 breakup = ta.crossover(src,upper-slope_ph*length)
 breakdown = ta.crossunder(src,lower+slope_pl*length)
 
-
+plotchar(breakup,"breakup")
+plotchar(breakdown,"breakdown")
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                      ====== POSITION AND SIGNAL ======                     //
@@ -177,8 +190,11 @@ breakdown = ta.crossunder(src,lower+slope_pl*length)
     //   CREATE SUMMARY SIGNALS  //
     /////////////////////////////// 
 
-CANDLE_PATTERN_LONG = true
-CANDLE_PATTERN_SHORT = true
+CANDLE_PATTERN_LONG = breakup and LONG_DEMA_SIDE
+CANDLE_PATTERN_SHORT = breakdown and SHORT_DEMA_SIDE
+
+plotchar(LONG_DEMA_SIDE,"LONG_DEMA_SIDE")
+plotchar(SHORT_DEMA_SIDE,"SHORT_DEMA_SIDE")
 
 LONG_SIGNAL = CANDLE_PATTERN_LONG  //and MACDZeroLag > Lignesignal and MACDZeroLag > 0 and strategy.position_size==0//crossover(MACDZeroLag[10],0) and MACDZeroLag < Lignesignal and trend == 1 //crossover(close,upper) and trend == 1 //crossover(rsi,RSI_BOTTOM_BAND) and close > TPlower //and lowest(close,5) > lower
 SHORT_SIGNAL = CANDLE_PATTERN_SHORT  //and MACDZeroLag < Lignesignal and MACDZeroLag < 0 and strategy.position_size==0//crossunder(MACDZeroLag[10],0) and MACDZeroLag > Lignesignal and trend != 1 //crossunder(close,lower) and trend != 1//crossunder(rsi,RSI_TOP_BAND) and close < TPupper //and highest(close,5) < upper
@@ -217,8 +233,10 @@ S_REST_POSITION = 0
 S_REST_POSITION := S_REST_POSITION[1] != 0 ? S_REST_POSITION[1] : S_REST_POSITION
 plotchar(S_REST_POSITION, title='S_REST_POSITION')
 
+plotchar(SUMMARY_SIGNALS == 1 and strategy.position_size <= 0 and inDateRange, title='LONG')
 
 if SUMMARY_SIGNALS == 1 and strategy.position_size <= 0 and inDateRange
+    strategy.cancel_all()
     strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
     strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
 
@@ -400,11 +418,26 @@ if strategy.position_size > 0 and inDateRange  // LONG
         //stop
         strategy.exit(id='XL STP4', from_entry='LONG', qty_percent=100, stop=math.max(PVT1_TUp, strategy.position_avg_price), comment='TPSL LONG 50')
 
+
+        if SUMMARY_SIGNALS == 2 and strategy.position_size > 0 and inDateRange
+            if LONG_ONLY
+                strategy.close_all(comment='TPSL LONG')
+            else
+                strategy.close_all(comment='TPSL LONG ' + str.tostring(L_REST_POSITION))
+                strategy.entry(id='SHORT', direction=strategy.short, qty=TEST_CONTRACT_SIZE, comment='OPEN SHORT')
+
     if breakeven == 2
         strategy.cancel_all()
 
         //stop
         strategy.exit(id='XL STP4', from_entry='LONG', qty_percent=100, stop=math.max(PVT1_TUp, strategy.position_avg_price), comment='TPSL LONG 50')
+
+        if SUMMARY_SIGNALS == 2 and strategy.position_size > 0 and inDateRange
+            if LONG_ONLY
+                strategy.close_all(comment='TPSL LONG')
+            else
+                strategy.close_all(comment='TPSL LONG ' + str.tostring(L_REST_POSITION))
+                strategy.entry(id='SHORT', direction=strategy.short, qty=TEST_CONTRACT_SIZE, comment='OPEN SHORT')
 
 
 
@@ -450,6 +483,11 @@ if strategy.position_size < 0 and inDateRange  // SHORT
         //stop
         strategy.exit(id='XL STP4', from_entry='SHORT', qty_percent=100, stop=math.min(PVT1_TDown, strategy.position_avg_price), comment='TPSL SHORT 50')
 
+        if SUMMARY_SIGNALS == 1 and strategy.position_size < 0 and inDateRange
+            strategy.cancel_all()
+            strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
+            strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
+
     if Sbreakeven == 2
 
         strategy.cancel_all()
@@ -458,6 +496,10 @@ if strategy.position_size < 0 and inDateRange  // SHORT
         //stop
         strategy.exit(id='XL STP4', from_entry='SHORT', qty_percent=100, stop=math.min(PVT1_TDown, strategy.position_avg_price), comment='TPSL SHORT 50')
 
+        if SUMMARY_SIGNALS == 1 and strategy.position_size < 0 and inDateRange
+            strategy.cancel_all()
+            strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
+            strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
     //////////////////////////////
     //    PLOT FOR TPSL LINE    //
     //////////////////////////////
