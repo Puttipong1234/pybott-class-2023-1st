@@ -1,0 +1,32 @@
+Name,Value
+"__indicatorName","LESSON05-SRBB"
+"Start Date",1
+"Start Month",5
+"Start Year",2020
+"End Date",1
+"End Month",1
+"End Year",2021
+"USE SPECIFIC DATE ?",false
+"LOTS",7
+"Leverage",11
+"LONG_ONLY ?",false
+"Left Bars",40
+"Right Bars",20
+"LONG REGION %",25
+"SHORT REGION %",25
+"Pivot Point Period",10
+"ATR Factor",3
+"ATR Period",10
+"Length",10
+"Source","close"
+"StdDev",1.5
+"SL_METHOD","SL@CUSTOM"
+"LOWEST_SL_LOOKBACK",51
+"PREVIOUS_SL_RR",20
+"ATR_LENGTH",21
+"ATR_SMOOTHING","RMA"
+"ATR_MUL_SL",2
+"ATR_MUL_TP",3
+"% TP 1",6
+"% TP 2",6
+"% SL",1.5
