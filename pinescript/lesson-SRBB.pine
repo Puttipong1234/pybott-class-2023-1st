@@ -1,0 +1,506 @@
+
+// This source code is free to use, copy, and alter in any way you choose.
+// ...but credit is always nice :)
+// FB FANPAGE : PYBOTT
+
+//@version=5
+//@author=PYBOTT
+
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                COMMONS INPUT ARE INITIATE FOR STRATEGY                     //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////
+    //     STRATEGY ESTABLISH    //
+    ///////////////////////////////  
+
+strategy('LESSON05-SRBB', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
+
+    ///////////////////////////////
+    //   DATE RANGE OF BACKTEST  //
+    ///////////////////////////////
+
+startDate = input.int(title='Start Date', defval=2, minval=1, maxval=31, group='DATE CONFIG')
+startMonth = input.int(title='Start Month', defval=1, minval=1, maxval=12, group='DATE CONFIG')
+startYear = input.int(title='Start Year', defval=2021, minval=1800, maxval=2100, group='DATE CONFIG')
+
+endDate = input.int(title='End Date', defval=1, minval=1, maxval=31, group='DATE CONFIG')
+endMonth = input.int(title='End Month', defval=3, minval=1, maxval=12, group='DATE CONFIG')
+endYear = input.int(title='End Year', defval=2022, minval=1800, maxval=2100, group='DATE CONFIG')
+
+SPECIFIC_DATE = input.bool(title='USE SPECIFIC DATE ?', defval=false, group='DATE CONFIG')
+TEXT_DATE = SPECIFIC_DATE ? str.tostring(startMonth) + '/' + str.tostring(startYear) + '  -  ' + str.tostring(endMonth) + '/' + str.tostring(endYear) : 'แท่งเทียนทั้งหมด'
+
+inDateRange = SPECIFIC_DATE ? time >= timestamp(syminfo.timezone, startYear, startMonth, startDate, 0, 0) and time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0) : true
+
+    ///////////////////////////////
+    // RISK CONFIG FOR STRATEGY  //
+    ///////////////////////////////
+
+EACHLOTS = input.int(defval=10, title='LOTS', group='RISK CONFIG')  //7
+LEVERAGE = input.int(defval=10, title='Leverage', group='RISK CONFIG')  //14
+LONG_ONLY = input.bool(false, 'LONG_ONLY ?', group='RISK CONFIG')
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                      ======  INDICATORS IN USE  ======                     //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////
+    //  CREATE INDICATOR 1 HERE  // SR LUXALGO
+    ///////////////////////////////
+
+leftBars = input(30, title='Left Bars ')
+rightBars = input(30, title='Right Bars')
+LONG_BIAS_REGION = input(20,title="LONG REGION %")
+SHORT_BIAS_REGION = input(20,title="SHORT REGION %")
+//
+highUsePivot = fixnan(ta.pivothigh(leftBars, rightBars)[1])
+lowUsePivot = fixnan(ta.pivotlow(leftBars, rightBars)[1])
+r1 = plot(highUsePivot, color=ta.change(highUsePivot) ? na : #FF0000, linewidth=3, offset=-(rightBars + 1), title='Resistance')
+s1 = plot(lowUsePivot, color=ta.change(lowUsePivot) ? na : #233dee, linewidth=3, offset=-(rightBars + 1), title='Support')
+
+float Range = highUsePivot - lowUsePivot
+float Long_range_region = (Range * LONG_BIAS_REGION/100) + lowUsePivot
+float Short_range_region = highUsePivot - (Range * SHORT_BIAS_REGION/100)
+
+BIAS_LONG = (close[1] < Long_range_region and close[1] > lowUsePivot) or (low < Long_range_region and low > lowUsePivot)
+BIAS_SHORT = (close[1] > Short_range_region and close[1] < highUsePivot) or (high > Short_range_region and high < highUsePivot)
+
+plotchar(BIAS_LONG,title = "Bias long confirm")
+plotchar(BIAS_SHORT,title = "Bias short confirm")
+plotchar(Short_range_region,"Short_range_region")
+
+
+    ///////////////////////////////
+    //  CREATE INDICATOR 1 HERE  // PIVOT SUPERTREND
+    ///////////////////////////////
+
+PVT1_prd = input.int(defval=5, title='Pivot Point Period', minval=1, maxval=50)
+PVT1_Factor = input.float(defval=1.9, title='ATR Factor', minval=1, step=0.1)
+PVT1_Pd = input.int(defval=10, title='ATR Period', minval=1)
+
+// get Pivot High/Low
+float PVT1_ph = ta.pivothigh(PVT1_prd, PVT1_prd)
+float PVT1_pl = ta.pivotlow(PVT1_prd, PVT1_prd)
+
+// calculate the Center line using pivot points
+var float PVT1_center = na
+float PVT1_lastpp = PVT1_ph ? PVT1_ph : PVT1_pl ? PVT1_pl : na
+if PVT1_lastpp
+    if na(PVT1_center)
+        PVT1_center := PVT1_lastpp
+        PVT1_center
+    else
+        //weighted calculation
+        PVT1_center := (PVT1_center * 2 + PVT1_lastpp) / 3
+        PVT1_center
+
+// upper/lower bands calculation
+PVT1_Up = PVT1_center - PVT1_Factor * ta.atr(PVT1_Pd)
+PVT1_Dn = PVT1_center + PVT1_Factor * ta.atr(PVT1_Pd)
+
+// get the trend
+float PVT1_TUp = na
+float PVT1_TDown = na
+PVT1_Trend = 0
+PVT1_TUp := close[1] > PVT1_TUp[1] ? math.max(PVT1_Up, PVT1_TUp[1]) : PVT1_Up
+PVT1_TDown := close[1] < PVT1_TDown[1] ? math.min(PVT1_Dn, PVT1_TDown[1]) : PVT1_Dn
+PVT1_Trend := close > PVT1_TDown[1] ? 1 : close < PVT1_TUp[1] ? -1 : nz(PVT1_Trend[1], 1)
+
+
+// plot the trend
+PVT1_Trailingsl = PVT1_Trend == 1 ? PVT1_TUp : PVT1_TDown
+PVT1_linecolor = PVT1_Trend == 1 and nz(PVT1_Trend[1]) == 1 ? color.lime : PVT1_Trend == -1 and nz(PVT1_Trend[1]) == -1 ? color.red : na
+
+PVT1_bsignal = PVT1_Trend == 1
+PVT1_ssignal = PVT1_Trend == -1
+
+
+    ///////////////////////////////
+    //  CREATE INDICATOR 2 HERE  // %BB
+    ///////////////////////////////
+
+length = input.int(10, minval=1)
+src = input(close, title="Source")
+mult = input.float(1.0, minval=0.001, maxval=50, title="StdDev")
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+bbr = (src - lower)/(upper - lower)
+
+Trigger_Long = ta.crossover(bbr,0)
+Trigger_Short = ta.crossunder(bbr,1)
+
+plotchar(Trigger_Long,title = "trigger long confirm")
+plotchar(Trigger_Short,title = "trigger short confirm")
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                      ====== POSITION AND SIGNAL ======                     //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////
+    //   CREATE SUMMARY SIGNALS  //
+    /////////////////////////////// 
+
+CANDLE_PATTERN_LONG = BIAS_LONG and Trigger_Long and strategy.position_size == 0
+CANDLE_PATTERN_SHORT = BIAS_SHORT and Trigger_Short and strategy.position_size == 0
+
+LONG_SIGNAL = CANDLE_PATTERN_LONG  //and MACDZeroLag > Lignesignal and MACDZeroLag > 0 and strategy.position_size==0//crossover(MACDZeroLag[10],0) and MACDZeroLag < Lignesignal and trend == 1 //crossover(close,upper) and trend == 1 //crossover(rsi,RSI_BOTTOM_BAND) and close > TPlower //and lowest(close,5) > lower
+SHORT_SIGNAL = CANDLE_PATTERN_SHORT  //and MACDZeroLag < Lignesignal and MACDZeroLag < 0 and strategy.position_size==0//crossunder(MACDZeroLag[10],0) and MACDZeroLag > Lignesignal and trend != 1 //crossunder(close,lower) and trend != 1//crossunder(rsi,RSI_TOP_BAND) and close < TPupper //and highest(close,5) < upper
+SUMMARY_SIGNALS = LONG_SIGNAL ? 1 : SHORT_SIGNAL ? 2 : 0
+TP_LONG_SIGNAL = false  //trend != 1 //or (close[1] < lower and close[2] < lower and close < lower) //crossunder(low,TPupper) or close < TPlower
+TP_SHORT_SIGNAL = false  //trend == 1 //or (close[1] > upper and close[2] > upper and close > upper)//crossover(close,TPlower) or close > TPupper
+TP_SUMMARY_SIGNALS = TP_LONG_SIGNAL ? 1 : TP_SHORT_SIGNAL ? 2 : 0
+
+    ///////////////////////////////
+    // AMOUNT & SIZE CALCULATION //
+    ///////////////////////////////
+
+TEST_SIZE = strategy.initial_capital / EACHLOTS * LEVERAGE
+TEST_CONTRACT_SIZE = math.abs(math.round(TEST_SIZE / close, 3))
+// FIX WRONG POSITION SIZE (ERROR WHEN SELL)
+TEST_CONTRACT_SIZE := strategy.position_size != 0 ? TEST_CONTRACT_SIZE[1] : TEST_CONTRACT_SIZE
+plotchar(TEST_CONTRACT_SIZE, 'TEST_CONTRACT_SIZE', char=' ')
+//0.004 //0.00
+// FACTORED SIZE to python server leverage always fix at 10
+//SEND_CONTRACT_SIZE = TEST_CONTRACT_SIZE * 100 * (LEVERAGE / 10)
+SEND_CONTRACT_SIZE = strategy.initial_capital / EACHLOTS / close * 100 * (LEVERAGE / 10)
+SEND_CONTRACT_SIZE := strategy.position_size != 0 ? SEND_CONTRACT_SIZE[1] : SEND_CONTRACT_SIZE
+plotchar(SEND_CONTRACT_SIZE, 'SEND_CONTRACT_SIZE', char=' ')
+
+
+
+    ///////////////////////////////
+    //   CREATE ENTRY POSITION   //
+    ///////////////////////////////    
+
+L_REST_POSITION = 0
+L_REST_POSITION := L_REST_POSITION[1] != 0 ? L_REST_POSITION[1] : L_REST_POSITION
+plotchar(L_REST_POSITION, title='L_REST_POSITION')
+
+S_REST_POSITION = 0
+S_REST_POSITION := S_REST_POSITION[1] != 0 ? S_REST_POSITION[1] : S_REST_POSITION
+plotchar(S_REST_POSITION, title='S_REST_POSITION')
+
+plotchar(SUMMARY_SIGNALS == 1 and strategy.position_size <= 0 and inDateRange, title='LONG')
+
+if SUMMARY_SIGNALS == 1 and strategy.position_size <= 0 and inDateRange
+    strategy.cancel_all()
+    strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
+    strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
+
+if SUMMARY_SIGNALS == 2 and strategy.position_size >= 0 and inDateRange
+    if LONG_ONLY
+        strategy.close_all(comment='TPSL LONG')
+    else
+        strategy.close_all(comment='TPSL LONG ' + str.tostring(L_REST_POSITION))
+        strategy.entry(id='SHORT', direction=strategy.short, qty=TEST_CONTRACT_SIZE, comment='OPEN SHORT')
+
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                      ==== TAKE-PROFITS STOPLOSS  ===                       //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+SL_METHOD = input.string(title='SL_METHOD', defval='SL@CUSTOM', options=['SL@PREVIOUS_LOW', 'SL@LEVERAGE', 'SL@ATR', 'SL@CUSTOM'], group='SL CONFIG')
+
+    /////////////////////////
+    //  PLOW CALCULATION   //
+    /////////////////////////
+
+PREVIOUS_SL_LOOKBACK = input.int(title='LOWEST_SL_LOOKBACK', defval=51, minval=5, group='SL@PREVIOUS HL CONFIG')
+PREVIOUS_SL_RR = input.float(title='PREVIOUS_SL_RR', defval=20, minval=0.5, group='SL@PREVIOUS HL CONFIG')
+
+PLowLongStopPrice = ta.lowest(low, PREVIOUS_SL_LOOKBACK)
+PhighShortStopPrice = ta.highest(high, PREVIOUS_SL_LOOKBACK)
+
+if strategy.position_size > 0
+    PLowLongStopPrice := math.min(nz(PLowLongStopPrice[1]), PLowLongStopPrice)
+    PLowLongStopPrice
+if strategy.position_size < 0
+    PhighShortStopPrice := math.max(nz(PhighShortStopPrice[1]), PhighShortStopPrice)
+    PhighShortStopPrice
+
+    /////////////////////////
+    //  ATR CALCULATION   ///
+    /////////////////////////
+
+ATR_LENGTH = input.int(title='ATR_LENGTH', defval=21, minval=1, group='SL@ATR CONFIG')
+ATR_SMOOTHING = input.string(title='ATR_SMOOTHING', defval='RMA', options=['RMA', 'SMA', 'EMA', 'WMA'], group='SL@ATR CONFIG')
+ATR_MUL_SL = input.float(title='ATR_MUL_SL', defval=2, group='SL@ATR CONFIG')
+ATR_MUL_TP = input.float(title='ATR_MUL_TP', defval=3, group='SL@ATR CONFIG')
+ma_function(source, length) =>
+    ta.rma(source, length)
+
+ATR_VALUE = ma_function(ta.tr(true), ATR_LENGTH)
+ATR_VALUE := strategy.position_size == 0 ? ATR_VALUE : ATR_VALUE[1]
+
+    /////////////////////////////
+    //  LEVERAGE CALCULATION   //
+    /////////////////////////////
+
+LeveragelongStopPrice = strategy.position_avg_price * (1 - 1 / LEVERAGE)  //+ Redundant
+LeverageshortStopPrice = strategy.position_avg_price * (1 + 1 / LEVERAGE)  //- Redundant
+    
+    /////////////////////////////
+    //  fix percent CALCULATION //
+    /////////////////////////////
+// NUMBER_OF_TP = input.float(title='number of TP points (4)', defval=4, group='SL@CUSTOM')
+TP_1 = input.float(title='% TP 1', defval=2, group='SL@CUSTOM',minval = 0)
+TP_2 = input.float(title='% TP 2', defval=2, group='SL@CUSTOM')
+SL_1 = input.float(title='% SL', defval=2, group='SL@CUSTOM',minval = 0)
+
+    //////////////////////////////
+    //  CREATE TP SL POSITION   //
+    //////////////////////////////
+
+LongTPsum = 0.0
+ShortTPsum = 0.0
+
+
+LongSLsum = 0.0
+ShortSLsum = 0.0
+
+LongTPsum_1 = 0.0
+ShortTPsum_1 = 0.0
+
+LongTPsum_2 = 0.0
+ShortTPsum_2 = 0.0
+
+
+//TREND_REVERSAL_SL_LONG = 0.0
+//TREND_REVERSAL_SL_SHORT = 0.0
+
+if SL_METHOD == 'SL@PREVIOUS_LOW'
+    LongSLsum := math.max(PLowLongStopPrice, LeveragelongStopPrice)
+    ShortSLsum := math.min(PhighShortStopPrice, LeverageshortStopPrice)
+
+    Ldiff = math.abs(strategy.position_avg_price - PLowLongStopPrice)
+    Sdiff = math.abs(strategy.position_avg_price - PhighShortStopPrice)
+
+    LongTPsum := strategy.position_size >= 0 ? strategy.position_avg_price * (1 + TP_1 / 100) : na
+    ShortTPsum := strategy.position_avg_price - Sdiff * PREVIOUS_SL_RR
+    ShortTPsum
+
+else if SL_METHOD == 'SL@LEVERAGE'
+    LongSLsum := LeveragelongStopPrice
+    ShortSLsum := LeverageshortStopPrice
+
+    Ldiff = math.abs(strategy.position_avg_price - LeveragelongStopPrice)
+    Sdiff = math.abs(strategy.position_avg_price - LeverageshortStopPrice)
+
+
+
+else if SL_METHOD == 'SL@ATR'
+    LongSLsum := math.max(strategy.position_avg_price - ATR_VALUE * ATR_MUL_SL, LeveragelongStopPrice)
+    ShortSLsum := math.min(strategy.position_avg_price + ATR_VALUE * ATR_MUL_SL, LeverageshortStopPrice)
+
+    LongTPsum := strategy.position_avg_price + ATR_VALUE * ATR_MUL_TP
+    ShortTPsum := strategy.position_avg_price - ATR_VALUE * ATR_MUL_TP
+    ShortTPsum
+
+
+else if SL_METHOD == 'SL@CUSTOM'
+    LongSLsum := strategy.position_size >= 0 ? strategy.position_avg_price * (1 - SL_1 / 100) : na
+    ShortSLsum := strategy.position_size <= 0 ? strategy.position_avg_price * (1 + SL_1 / 100) : na
+
+    LongTPsum_1 := strategy.position_size >= 0 ? strategy.position_avg_price * (1 + TP_1 / 100) : na
+    ShortTPsum_1 := strategy.position_size <= 0 ? strategy.position_avg_price * (1 - TP_1 / 100) : na
+
+    LongTPsum_2 := strategy.position_size >= 0 ? strategy.position_avg_price * (1 + TP_2 / 100) : na
+    ShortTPsum_2 := strategy.position_size <= 0 ? strategy.position_avg_price * (1 - TP_2 / 100) : na
+    ShortTPsum_2
+
+
+EACH_TP_SIZE = 0.0
+BS = ta.barssince(ta.crossover(high, LongTPsum_1))
+BS2 = ta.barssince(ta.crossover(high, LongTPsum_2))
+breakeven = 0
+
+plotchar(ta.crossunder(high,LongTPsum_1) and L_REST_POSITION == 75 and strategy.position_size != 0,title = "check")
+plotchar(BS < ta.barssince(strategy.position_size <= 0),title = "check1")
+
+if BS[1] < ta.barssince(strategy.position_size <= 0)[1]
+    breakeven := 1
+    L_REST_POSITION := 75
+    L_REST_POSITION
+
+
+else if BS2 < ta.barssince(strategy.position_size <= 0)
+    breakeven := 2
+    L_REST_POSITION := 50
+    L_REST_POSITION
+else
+
+    breakeven := 0
+    L_REST_POSITION := 100
+    if strategy.position_size <= 0
+        L_REST_POSITION := 0
+        L_REST_POSITION
+
+
+
+plot(strategy.position_size < 0 ? na : breakeven == 1 ? strategy.position_avg_price : LongSLsum, color=color.new(color.yellow, 0), style=plot.style_linebr, linewidth=3)
+plot(strategy.position_size < 0 ? na : LongTPsum_1, color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
+plot(strategy.position_size < 0 ? na : LongTPsum_2, color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
+
+
+
+if strategy.position_size > 0 and inDateRange  // LONG
+
+
+    if breakeven == 0
+        strategy.exit(id='XL STP1', from_entry='LONG', qty_percent=50, limit=LongTPsum_1, stop=LongSLsum, comment='TPSL LONG 50')
+        strategy.exit(id='XL STP2', from_entry='LONG', qty_percent=25, limit=LongTPsum_2, stop=LongSLsum, comment='TPSL LONG 25')
+
+        //stop
+        strategy.exit(id='XL STPA', from_entry='LONG', qty_percent=100, stop=LongSLsum, comment='TPSL LONG 25')
+
+
+
+    if breakeven == 1
+        strategy.cancel_all()
+
+
+        strategy.exit(id='XL STP2', from_entry='LONG', qty_percent=25, limit=LongTPsum_2, stop=math.max(PVT1_TUp, strategy.position_avg_price), comment='TPSL LONG 25')
+        //stop
+        strategy.exit(id='XL STP4', from_entry='LONG', qty_percent=100, stop=math.max(PVT1_TUp, strategy.position_avg_price), comment='TPSL LONG 25')
+
+
+        if SUMMARY_SIGNALS == 2 and strategy.position_size > 0 and inDateRange
+            if LONG_ONLY
+                strategy.close_all(comment='TPSL LONG')
+            else
+                strategy.close_all(comment='TPSL LONG ' + str.tostring(L_REST_POSITION))
+                strategy.entry(id='SHORT', direction=strategy.short, qty=TEST_CONTRACT_SIZE, comment='OPEN SHORT')
+
+    if breakeven == 2
+        strategy.cancel_all()
+
+        //stop
+        strategy.exit(id='XL STP4', from_entry='LONG', qty_percent=100, stop=math.max(PVT1_TUp, strategy.position_avg_price), comment='TPSL LONG 50')
+
+        if SUMMARY_SIGNALS == 2 and strategy.position_size > 0 and inDateRange
+            if LONG_ONLY
+                strategy.close_all(comment='TPSL LONG')
+            else
+                strategy.close_all(comment='TPSL LONG ' + str.tostring(L_REST_POSITION))
+                strategy.entry(id='SHORT', direction=strategy.short, qty=TEST_CONTRACT_SIZE, comment='OPEN SHORT')
+
+
+
+
+SBS = ta.barssince(ta.crossunder(low, ShortTPsum_1))
+SBS2 = ta.barssince(ta.crossunder(low, ShortTPsum_2))
+
+Sbreakeven = 0
+if SBS < ta.barssince(strategy.position_size >= 0)
+    Sbreakeven := 1
+    S_REST_POSITION := 75
+    S_REST_POSITION
+
+else if SBS2 < ta.barssince(strategy.position_size >= 0)
+    Sbreakeven := 2
+    S_REST_POSITION := 50
+    S_REST_POSITION
+else
+
+    Sbreakeven := 0
+    S_REST_POSITION := 100
+    if strategy.position_size >= 0
+        S_REST_POSITION := 0
+        S_REST_POSITION
+
+plot(strategy.position_size > 0 ? na : Sbreakeven == 1 ? strategy.position_avg_price : ShortSLsum, color=color.new(color.yellow, 0), style=plot.style_linebr, linewidth=3)
+plot(strategy.position_size > 0 ? na : ShortTPsum_1, color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
+plot(strategy.position_size > 0 ? na : ShortTPsum_2, color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
+
+
+
+if strategy.position_size < 0 and inDateRange  // SHORT
+
+    if breakeven == 0
+        strategy.exit(id='XL STP1', from_entry='SHORT', qty_percent=25, limit=ShortTPsum_1, stop=ShortSLsum, comment='TPSL SHORT 25')
+        strategy.exit(id='XL STP2', from_entry='SHORT', qty_percent=25, limit=ShortTPsum_2, stop=ShortSLsum, comment='TPSL SHORT 25')
+        strategy.exit(id='XL STPA', from_entry='SHORT', qty_percent=100, stop=ShortSLsum, comment='TPSL SHORT 50')
+
+    if Sbreakeven == 1
+        strategy.cancel_all()
+        //tp
+        strategy.exit(id='XL STP2', from_entry='SHORT', qty_percent=25, limit=ShortTPsum_2, stop=math.min(PVT1_TDown, strategy.position_avg_price), comment='TPSL SHORT 25')
+        //stop
+        strategy.exit(id='XL STP4', from_entry='SHORT', qty_percent=100, stop=math.min(PVT1_TDown, strategy.position_avg_price), comment='TPSL SHORT 50')
+
+        if SUMMARY_SIGNALS == 1 and strategy.position_size < 0 and inDateRange
+            strategy.cancel_all()
+            strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
+            strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
+
+    if Sbreakeven == 2
+
+        strategy.cancel_all()
+
+        //tp
+        //stop
+        strategy.exit(id='XL STP4', from_entry='SHORT', qty_percent=100, stop=math.min(PVT1_TDown, strategy.position_avg_price), comment='TPSL SHORT 50')
+
+        if SUMMARY_SIGNALS == 1 and strategy.position_size < 0 and inDateRange
+            strategy.cancel_all()
+            strategy.close_all(comment='TPSL SHORT ' + str.tostring(S_REST_POSITION))
+            strategy.entry(id='LONG', direction=strategy.long, qty=TEST_CONTRACT_SIZE, comment='OPEN LONG')
+    //////////////////////////////
+    //    PLOT FOR TPSL LINE    //
+    //////////////////////////////
+plotchar(title='ATR VALUE', series=ATR_VALUE, char='')
+plotchar(title='(ATR_VALUE * ATR_MUL_SL)', series=ATR_VALUE * ATR_MUL_SL, char='')
+plotchar(title='(ATR_VALUE * ATR_MUL_TP)', series=ATR_VALUE * ATR_MUL_TP, char='')
+
+
+
+//l = label.new(x=time + 1 * (time - time[1]) , y=high , xloc=xloc.bar_time , style= true ? label.style_label_lower_left : label.style_label_upper_left , yloc = yloc.price , color=#14ff3c66 , textcolor = color.white , size = size.small , text =  "------------------------------------------\n QUICK STARTER TEMPLATE [PYBOTT] \n------------------------------------------\n TOTAL PROFITS :  " + tostring(round(strategy.netprofit,2)) +"\n\n CURRENT EQUITY :  "+ tostring(round(strategy.equity,2)) +"\n\n WIN/LOSE :  "+ tostring(round(strategy.wintrades,2)) + "/" + tostring(round(strategy.losstrades,2)) + "\n\n (สรุปผลการเทรดช่วงเวลา)\n"+TEXT_DATE)
+
+//label.delete(l[1])
+
+
+
+
+
+//var tbl = table.new(position.top_right, 2, 4)
+//if (barstate.islast)
+//    table.cell(tbl, 0, 0, "NET PROFITS",  bgcolor = #aaaaaa, width = 7, height = 4)
+//    table.cell(tbl, 1, 0, "TOTAL TRADE", bgcolor = #aaaaaa, width = 7, height = 4)
+//    table.cell(tbl, 2, 0, "WINRATE", bgcolor = #aaaaaa, width = 7, height = 4)
+//    table.cell(tbl, 3, 0, "MAX DRAWNDOWN", bgcolor = #aaaaaa, width = 10, height = 4)
+
+//    table.cell(tbl, 0, 1, tostring(round(strategy.netprofit,2)),  bgcolor = color.green, width = 7, height = 4)
+//    table.cell(tbl, 1, 1, tostring(round(strategy.wintrades,2))+tostring(round(strategy.losstrades,2)), bgcolor = color.blue,   width = 7, height = 4)
+//    table.cell(tbl, 2, 1, tostring((round(strategy.wintrades,2))/(round(strategy.losstrades,2))),  bgcolor = color.purple, width = 7, height = 4)
+//    table.cell(tbl, 3, 1, tostring(round(strategy.max_drawdown,2)), bgcolor = color.red, width = 10, height = 4)
+
+plot(PVT1_Trailingsl, color=PVT1_linecolor, linewidth=2, title='PP1 SuperTrend')
+
+var table myTable = table.new(position.bottom_center, 6, 2, border_width=2)
+
+// Update table
+if barstate.islastconfirmedhistory
+    txt1 = 'ผลกำไร\n\n' + str.tostring(math.round(strategy.netprofit * 100 / (strategy.equity - strategy.netprofit), 2)) + ' %'
+    txt2 = 'อัตราการชนะ\n\n' + str.tostring(math.round(strategy.wintrades * 100 / (strategy.losstrades + strategy.wintrades), 2)) + ' %'
+    txt3 = 'จำนวนการเทรด\n\n' + str.tostring(math.round(strategy.wintrades, 2) + math.round(strategy.losstrades, 2))
+    txt4 = 'การขาดทุนสูงสุด\n\n' + str.tostring(math.round(strategy.max_drawdown * 100 / (strategy.equity - strategy.netprofit), 2)) + ' %'
+    txt5 = 'เงินทุนเริ่มต้น\n\n' + str.tostring(strategy.equity - strategy.netprofit) + '  USDT'
+    txt6 = 'ช่วงเวลาการเทรด\n\n' + TEXT_DATE
+
+    table.cell(myTable, 0, 0, text=txt1, bgcolor=color.green, text_color=color.white)
+    table.cell(myTable, 1, 0, text=txt2, bgcolor=color.black, text_color=color.white)
+    table.cell(myTable, 2, 0, text=txt3, bgcolor=color.black, text_color=color.white)
+    table.cell(myTable, 3, 0, text=txt4, bgcolor=color.black, text_color=color.white)
+    table.cell(myTable, 4, 0, text=txt5, bgcolor=color.black, text_color=color.white)
+    table.cell(myTable, 5, 0, text=txt6, bgcolor=color.black, text_color=color.white)
