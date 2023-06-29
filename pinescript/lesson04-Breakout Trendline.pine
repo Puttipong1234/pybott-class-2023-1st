@@ -16,7 +16,7 @@
     //     STRATEGY ESTABLISH    //
     ///////////////////////////////  
 
-strategy('LESSON04-Template', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
+strategy('PB-BTC-15 : Breakout Trendline (Multi-Switch)', overlay=true, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.05)
 
     ///////////////////////////////
     //   DATE RANGE OF BACKTEST  //
@@ -371,8 +371,9 @@ breakeven = 0
 
 plotchar(ta.crossunder(high,LongTPsum_1) and L_REST_POSITION == 75 and strategy.position_size != 0,title = "check")
 plotchar(BS < ta.barssince(strategy.position_size <= 0),title = "check1")
+plotchar(BS2 < ta.barssince(strategy.position_size <= 0),title = "check2")
 
-if BS[1] < ta.barssince(strategy.position_size <= 0)[1]
+if BS[1] < ta.barssince(strategy.position_size <= 0)[1] and BS2 > ta.barssince(strategy.position_size <= 0)
     breakeven := 1
     L_REST_POSITION := 75
     L_REST_POSITION
@@ -382,6 +383,7 @@ else if BS2 < ta.barssince(strategy.position_size <= 0)
     breakeven := 2
     L_REST_POSITION := 50
     L_REST_POSITION
+
 else
 
     breakeven := 0
@@ -446,7 +448,7 @@ SBS = ta.barssince(ta.crossunder(low, ShortTPsum_1))
 SBS2 = ta.barssince(ta.crossunder(low, ShortTPsum_2))
 
 Sbreakeven = 0
-if SBS < ta.barssince(strategy.position_size >= 0)
+if SBS[1] < ta.barssince(strategy.position_size >= 0)[1] and SBS2 > ta.barssince(strategy.position_size >= 0)
     Sbreakeven := 1
     S_REST_POSITION := 75
     S_REST_POSITION
@@ -462,6 +464,8 @@ else
     if strategy.position_size >= 0
         S_REST_POSITION := 0
         S_REST_POSITION
+
+plotchar(Sbreakeven,title = "Sbreakeven")
 
 plot(strategy.position_size > 0 ? na : Sbreakeven == 1 ? strategy.position_avg_price : ShortSLsum, color=color.new(color.yellow, 0), style=plot.style_linebr, linewidth=3)
 plot(strategy.position_size > 0 ? na : ShortTPsum_1, color=color.new(color.green, 0), style=plot.style_circles, linewidth=1)
